@@ -15,7 +15,11 @@ C\* Symbols: `integer`, `character`, `string`, `identifier`, `,`, `;`, `(`, `)`,
 with:
 
 ```
-integer    = digit { digit } .
+integer    = hex_integer | decimal_integer
+
+decimal_integer = "0" | ( digit_no_zero { digit } ) .
+
+hex_integer = "0x" ( "0" | ( ( digit_no_zero | hex_digit ) { ( digit | hex_digit ) } ) ) .
 
 character  = "'" printable_character "'" .
 
@@ -28,6 +32,10 @@ and:
 
 ```
 digit  = "0" | ... | "9" .
+
+digit_no_zero  = "1" | ... | "9" .
+
+hex_digit = "a" | ... | "f" | "A" | ... | "F" .
 
 letter = "a" | ... | "z" | "A" | ... | "Z" .
 ```
