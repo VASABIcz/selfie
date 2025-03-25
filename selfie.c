@@ -472,6 +472,8 @@ uint64_t SYM_INT      = 30; // int
 uint64_t SYM_CHAR     = 31; // char
 uint64_t SYM_UNSIGNED = 32; // unsigned
 uint64_t SYM_CONST    = 33; // const
+uint64_t SYM_R_SHIFT    = 34; // >>
+uint64_t SYM_L_SHIFT    = 35; // <<
 
 uint64_t* SYMBOLS; // strings representing symbols
 
@@ -509,7 +511,7 @@ uint64_t source_fd   = 0; // file descriptor of open source file
 // ------------------------- INITIALIZATION ------------------------
 
 void init_scanner () {
-  SYMBOLS = smalloc((SYM_CONST + 1) * sizeof(uint64_t*));
+  SYMBOLS = smalloc((SYM_L_SHIFT + 1) * sizeof(uint64_t*));
 
   *(SYMBOLS + SYM_INTEGER)      = (uint64_t) "integer";
   *(SYMBOLS + SYM_CHARACTER)    = (uint64_t) "character";
@@ -541,6 +543,8 @@ void init_scanner () {
   *(SYMBOLS + SYM_GT)           = (uint64_t) ">";
   *(SYMBOLS + SYM_GEQ)          = (uint64_t) ">=";
   *(SYMBOLS + SYM_ELLIPSIS)     = (uint64_t) "...";
+  *(SYMBOLS + SYM_R_SHIFT)     = (uint64_t) ">>";
+  *(SYMBOLS + SYM_L_SHIFT)     = (uint64_t) "<<";
 
   *(SYMBOLS + SYM_INT)      = (uint64_t) "int";
   *(SYMBOLS + SYM_CHAR)     = (uint64_t) "char";
@@ -678,6 +682,7 @@ uint64_t is_expression();
 uint64_t is_comparison();
 uint64_t is_plus_or_minus();
 uint64_t is_mult_or_div_or_rem();
+uint64_t is_any_shift();
 uint64_t is_factor();
 uint64_t is_literal();
 
@@ -724,6 +729,7 @@ void compile_assignment(char* variable);
 
 uint64_t compile_expression(); // returns type
 uint64_t compile_arithmetic(); // returns type
+uint64_t compile_shift();
 uint64_t compile_term();       // returns type
 uint64_t compile_factor();     // returns type
 
@@ -1630,7 +1636,9 @@ uint64_t STORE = 10;
 uint64_t BEQ   = 11;
 uint64_t JAL   = 12;
 uint64_t JALR  = 13;
-uint64_t ECALL = 14;
+uint64_t SRL   = 14;
+uint64_t SLL   = 15;
+uint64_t ECALL = 16;
 
 uint64_t* MNEMONICS; // assembly mnemonics of instructions
 
@@ -1678,6 +1686,10 @@ void init_disassembler() {
   *(MNEMONICS + BEQ)   = (uint64_t) "beq";
   *(MNEMONICS + JAL)   = (uint64_t) "jal";
   *(MNEMONICS + JALR)  = (uint64_t) "jalr";
+
+  *(MNEMONICS + SRL)  = (uint64_t) "srl";
+  *(MNEMONICS + SLL)  = (uint64_t) "sll";
+
   *(MNEMONICS + ECALL) = (uint64_t) "ecall";
 }
 
@@ -3966,6 +3978,10 @@ void get_symbol() {
           get_character();
 
           symbol = SYM_LEQ;
+        } else if (character == CHAR_LT) {
+          get_character();
+
+          symbol = SYM_L_SHIFT;
         } else
           symbol = SYM_LT;
       } else if (character == CHAR_GT) {
@@ -3975,6 +3991,10 @@ void get_symbol() {
           get_character();
 
           symbol = SYM_GEQ;
+        } else if (character == CHAR_GT) {
+          get_character();
+
+          symbol = SYM_R_SHIFT;
         } else
           symbol = SYM_GT;
       } else if (character == CHAR_DOT) {
@@ -4274,6 +4294,15 @@ uint64_t is_mult_or_div_or_rem() {
   else if (symbol == SYM_DIVISION)
     return 1;
   else if (symbol == SYM_REMAINDER)
+    return 1;
+  else
+    return 0;
+}
+
+uint64_t is_any_shift() {
+  if (symbol == SYM_L_SHIFT)
+    return 1;
+  else if (symbol == SYM_R_SHIFT)
     return 1;
   else
     return 0;
@@ -4984,7 +5013,7 @@ uint64_t compile_arithmetic() {
 
   // assert: n = allocated_temporaries
 
-  ltype = compile_term();
+  ltype = compile_shift();
 
   // assert: allocated_temporaries == n + 1
 
@@ -4993,7 +5022,7 @@ uint64_t compile_arithmetic() {
 
     get_symbol();
 
-    rtype = compile_term();
+    rtype = compile_shift();
 
     // assert: allocated_temporaries == n + 2
 
@@ -5046,6 +5075,44 @@ uint64_t compile_arithmetic() {
   // assert: allocated_temporaries == n + 1
 
   // type of simple expression is grammar attribute
+  return ltype;
+}
+
+uint64_t compile_shift() {
+  uint64_t ltype;
+  uint64_t operator_symbol;
+  uint64_t rtype;
+
+  // assert: n = allocated_temporaries
+
+  ltype = compile_term();
+
+  // assert: allocated_temporaries == n + 1
+
+  while (is_any_shift()) {
+    operator_symbol = symbol;
+
+    get_symbol();
+
+    rtype = compile_term();
+
+    // assert: allocated_temporaries == n + 2
+
+    if (ltype != rtype)
+      type_warning(ltype, rtype);
+
+    if (operator_symbol == SYM_R_SHIFT) {
+      // TODO
+    }
+    else if (operator_symbol == SYM_L_SHIFT) {
+      // TODO
+    }
+
+    tfree(1);
+  }
+
+  // assert: allocated_temporaries == n + 1
+
   return ltype;
 }
 
