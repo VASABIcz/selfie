@@ -36,6 +36,10 @@ The parameter `imm` denotes a signed integer value represented by a fixed number
 
 `add rd,rs1,rs2`: `rd = rs1 + rs2; pc = pc + 4`
 
+`srl rd,rs1,rs2`: `rd = rs1 >> rs2; pc = pc + 4`
+
+`sll rd,rs1,rs2`: `rd = rs1 << rs2; pc = pc + 4`
+
 `sub rd,rs1,rs2`: `rd = rs1 - rs2; pc = pc + 4`
 
 `mul rd,rs1,rs2`: `rd = rs1 * rs2; pc = pc + 4`
