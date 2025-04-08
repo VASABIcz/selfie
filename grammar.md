@@ -51,13 +51,17 @@ statement  = assignment ";" | if | while | call ";" | return ";" .
 
 assignment = ( [ "*" ] identifier | "*" "(" expression ")" ) "=" expression .
 
-expression = arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ] .
+expression = bitwise_or [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) bitwise_or ] .
+
+bitwise_or = bitwise_and { "|" bitwise_and } . 
+
+bitwise_and = arithmetic { "&" arithmetic } . 
 
 arithmetic = term { ( "+" | "-" ) term } .
 
 term       = factor { ( "*" | "/" | "%" ) factor } .
 
-factor     = [ cast ] [ "-" ] [ "*" ]
+factor     = [ cast ] [ "-" ] [ "*" ] [ "~" ]
              ( "sizeof" "(" type ")" | literal | identifier | call | "(" expression ")" ) .
 
 literal    = value | string .
