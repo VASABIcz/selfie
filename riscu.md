@@ -59,3 +59,11 @@ The parameter `imm` denotes a signed integer value represented by a fixed number
 #### System
 
 `ecall`: system call number is in `a7`, arguments are in `a0-a3`, return value is in `a0`.
+
+#### Bitwise
+
+`and rd,rs1,rs2`: `rd = rs1 & rs2; pc = pc + 4`
+
+`or rd,rs1,rs2`: `rd = rs1 | rs2; pc = pc + 4`
+
+`xori rd,rs1,imm`: `rd = rs1 ^ sign_extend(imm, 64); pc = pc + 4`  with `-2^11 <= imm < 2^11`
