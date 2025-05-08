@@ -69,6 +69,9 @@ if         = "if" "(" expression ")"
 
 while      = "while" "(" expression ")"
                ( statement | "{" { statement } "}" ) .
+               
+for        = "for" "(" [ assignment ] ";" [ expression ] ";" [ assignment ] ")"
+               ( statement | "{" { statement } "}" ) .
 
 procedure  = ( type | "void" ) identifier "(" [ variable { "," variable } [ "," "..." ] ] ")"
              ( ";" | "{" { variable ";" } { statement } "}" ) .

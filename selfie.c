@@ -465,13 +465,14 @@ uint64_t SYM_LEQ          = 26; // <=
 uint64_t SYM_GT           = 27; // >
 uint64_t SYM_GEQ          = 28; // >=
 uint64_t SYM_ELLIPSIS     = 29; // ...
+uint64_t SYM_FOR          = 30; // for
 
 // symbols for bootstrapping
 
-uint64_t SYM_INT      = 30; // int
-uint64_t SYM_CHAR     = 31; // char
-uint64_t SYM_UNSIGNED = 32; // unsigned
-uint64_t SYM_CONST    = 33; // const
+uint64_t SYM_INT      = 31; // int
+uint64_t SYM_CHAR     = 32; // char
+uint64_t SYM_UNSIGNED = 33; // unsigned
+uint64_t SYM_CONST    = 34; // const
 
 uint64_t* SYMBOLS; // strings representing symbols
 
@@ -521,6 +522,7 @@ void init_scanner () {
   *(SYMBOLS + SYM_VOID)         = (uint64_t) "void";
   *(SYMBOLS + SYM_RETURN)       = (uint64_t) "return";
   *(SYMBOLS + SYM_WHILE)        = (uint64_t) "while";
+  *(SYMBOLS + SYM_FOR)          = (uint64_t) "for";
   *(SYMBOLS + SYM_SIZEOF)       = (uint64_t) "sizeof";
   *(SYMBOLS + SYM_COMMA)        = (uint64_t) ",";
   *(SYMBOLS + SYM_SEMICOLON)    = (uint64_t) ";";
@@ -711,6 +713,7 @@ uint64_t compile_cast(uint64_t type); // returns cast type
 uint64_t compile_value(); // returns value
 
 void compile_statement();
+void compile_for_assign();
 
 uint64_t load_upper_value(uint64_t reg, uint64_t value);
 uint64_t load_upper_address(uint64_t* entry);
@@ -737,6 +740,7 @@ uint64_t compile_literal(); // returns type
 
 void compile_if();
 void compile_while();
+void compile_for();
 
 char*    bootstrap_non_0_boot_level_procedures(char* procedure);
 uint64_t is_boot_level_0_only_procedure(char* procedure);
@@ -3735,6 +3739,8 @@ uint64_t identifier_or_keyword() {
     return SYM_RETURN;
   else if (identifier_string_match(SYM_WHILE))
     return SYM_WHILE;
+  else if (identifier_string_match(SYM_FOR))
+    return SYM_FOR;
   else if (identifier_string_match(SYM_SIZEOF))
     return SYM_SIZEOF;
   else if (identifier_string_match(SYM_INT))
@@ -4342,6 +4348,8 @@ uint64_t is_not_statement() {
     return 0;
   else if (symbol == SYM_WHILE)
     return 0;
+  else if (symbol == SYM_FOR)
+    return 0;
   else if (symbol == SYM_RETURN)
     return 0;
   else if (symbol == SYM_EOF)
@@ -4674,6 +4682,8 @@ void compile_statement() {
     compile_if();
   else if (symbol == SYM_WHILE)
     compile_while();
+  else if (symbol == SYM_FOR)
+    compile_for();
   else if (symbol == SYM_RETURN) {
     compile_return();
 
@@ -4681,6 +4691,16 @@ void compile_statement() {
   }
 
   // assert: allocated_temporaries == 0
+}
+
+void compile_for_assign() {
+  char* variable_or_procedure;
+
+  variable_or_procedure = identifier;
+
+  get_symbol();
+
+  compile_assignment(variable_or_procedure);
 }
 
 uint64_t load_upper_value(uint64_t reg, uint64_t value) {
@@ -5504,6 +5524,95 @@ void compile_while() {
   // assert: allocated_temporaries == 0
 
   number_of_while = number_of_while + 1;
+}
+
+void compile_for() {
+  uint64_t jump_back_to_inc;
+  uint64_t jump_out_patch;
+  uint64_t before_inc;
+  uint64_t before_check;
+  jump_back_to_inc = 0;
+  jump_out_patch = 0;
+  before_check = 0;
+
+
+  // assert: allocated_temporaries == 0
+  if (symbol == SYM_FOR) {
+    // "for" "(" expression ")"
+    get_symbol();
+
+    if (symbol == SYM_LPARENTHESIS) {
+      get_symbol();
+
+      if (symbol == SYM_SEMICOLON) {
+        get_symbol();
+      } else {
+        compile_for_assign();
+
+        get_required_symbol(SYM_SEMICOLON);
+      }
+
+      jump_back_to_inc = code_size;
+
+      before_check = code_size;
+
+      if (symbol == SYM_SEMICOLON) {
+        get_symbol();
+      } else {
+        compile_expression();
+
+        jump_out_patch = code_size;
+        // if false jump out of loop
+        emit_beq(current_temporary(), REG_ZR, 0);
+
+        tfree(1);
+
+        get_required_symbol(SYM_SEMICOLON);
+      }
+
+      before_inc = code_size;
+
+      // skip post increment
+      emit_beq(REG_ZR, REG_ZR, 0);
+
+      if (symbol == SYM_RPARENTHESIS) {
+        get_symbol();
+      } else {
+        jump_back_to_inc = code_size;
+        compile_for_assign();
+
+        get_required_symbol(SYM_RPARENTHESIS);
+
+        emit_jal(REG_ZR, before_check - code_size);
+      }
+
+      fixup_BFormat(before_inc);
+
+      if (symbol != SYM_LBRACE) {
+        compile_statement();
+      } else {
+        get_required_symbol(SYM_LBRACE);
+
+        while (is_neither_rbrace_nor_eof())
+          // assert: allocated_temporaries == 0
+          compile_statement();
+
+        get_required_symbol(SYM_RBRACE);
+      }
+    } else
+      syntax_error_expected_symbol(SYM_LPARENTHESIS);
+  } else
+    syntax_error_expected_symbol(SYM_WHILE);
+
+  // jump back
+  if (jump_back_to_inc != 0) {
+    emit_jal(REG_ZR, jump_back_to_inc - code_size);
+  }
+
+  // fixup jump out
+  if (jump_out_patch != 0) {
+    fixup_BFormat(jump_out_patch);
+  }
 }
 
 char* bootstrap_non_0_boot_level_procedures(char* procedure) {
