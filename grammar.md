@@ -37,7 +37,7 @@ C\* Grammar:
 ```
 cstar      = { variable [ initialize ] ";" | procedure } .
 
-variable   = type identifier .
+variable   = type identifier [ "[" digit "]" ] .
 
 type       = "uint64_t" [ "*" ] .
 
@@ -49,7 +49,7 @@ value      = integer | character .
 
 statement  = assignment ";" | if | while | call ";" | return ";" .
 
-assignment = ( [ "*" ] identifier | "*" "(" expression ")" ) "=" expression .
+assignment = ( [ "*" ] identifier | [ "[" expression "]" ] | "*" "(" expression ")" ) "=" expression .
 
 expression = arithmetic [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) arithmetic ] .
 
@@ -58,7 +58,7 @@ arithmetic = term { ( "+" | "-" ) term } .
 term       = factor { ( "*" | "/" | "%" ) factor } .
 
 factor     = [ cast ] [ "-" ] [ "*" ]
-             ( "sizeof" "(" type ")" | literal | identifier | call | "(" expression ")" ) .
+             ( "sizeof" "(" type ")" | literal | identifier [ "[" expression "]" ] | call | "(" expression ")" ) .
 
 literal    = value | string .
 
