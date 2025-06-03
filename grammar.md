@@ -35,11 +35,15 @@ letter = "a" | ... | "z" | "A" | ... | "Z" .
 C\* Grammar:
 
 ```
-cstar      = { variable [ initialize ] ";" | procedure } .
+cstar      = { variable [ initialize ] ";" | procedure | struct } .
+
+struct     = "struct" identifier "{" { struct_field } "}" ";" .
+
+struct_field = type identifier ";"
 
 variable   = type identifier .
 
-type       = "uint64_t" [ "*" ] .
+type       = ( "uint64_t" [ "*" ] ) | ( "struct" identifier "*" ) .
 
 initialize = "=" [ cast ] [ "-" ] value .
 
