@@ -472,7 +472,8 @@ uint64_t SYM_INT      = 30; // int
 uint64_t SYM_CHAR     = 31; // char
 uint64_t SYM_UNSIGNED = 32; // unsigned
 uint64_t SYM_STRUCT   = 33; // struct
-uint64_t SYM_CONST    = 34; // const
+uint64_t SYM_DEREF    = 34; // ->
+uint64_t SYM_CONST    = 35; // const
 
 uint64_t* SYMBOLS; // strings representing symbols
 
@@ -535,6 +536,7 @@ void init_scanner () {
   *(SYMBOLS + SYM_DIVISION)     = (uint64_t) "/";
   *(SYMBOLS + SYM_REMAINDER)    = (uint64_t) "%";
   *(SYMBOLS + SYM_ASSIGN)       = (uint64_t) "=";
+  *(SYMBOLS + SYM_DEREF)        = (uint64_t) "->";
   *(SYMBOLS + SYM_EQUALITY)     = (uint64_t) "==";
   *(SYMBOLS + SYM_NOTEQ)        = (uint64_t) "!=";
   *(SYMBOLS + SYM_LT)           = (uint64_t) "<";
@@ -3937,7 +3939,12 @@ void get_symbol() {
       } else if (character == CHAR_DASH) {
         get_character();
 
-        symbol = SYM_MINUS;
+        if (character == CHAR_GT) {
+          get_character();
+          symbol = SYM_DEREF;
+        } else {
+          symbol = SYM_MINUS;
+        }
       } else if (character == CHAR_ASTERISK) {
         get_character();
 
@@ -4185,9 +4192,9 @@ uint64_t* get_struct_field(uint64_t* field, char* name) {
 
   while (current) {
     if (string_compare(get_field_name(current), name)) {
-
-    } else {
       return current;
+    } else {
+      current = get_field_next(current);
     }
   }
 
@@ -4509,6 +4516,19 @@ void print_type(uint64_t type) {
     printf("struct %s", get_string((uint64_t*)type));
 }
 
+uint64_t is_struct_type(uint64_t type) {
+  if (type == UINT64_T)
+    return 0;
+  else if (type == UINT64STAR_T)
+    return 0;
+  else if (type == VOID_T)
+    return 0;
+  else if (type == UNDECLARED_T)
+    return 0;
+  else
+    return 1;
+}
+
 void type_warning(uint64_t expected, uint64_t found) {
   print_line_number("warning", line_number);
   printf("type mismatch, ");
@@ -4580,6 +4600,7 @@ void compile_cstar() {
 
           get_expected_symbol(SYM_IDENTIFIER);
           get_expected_symbol(SYM_SEMICOLON);
+          field_offset = field_offset + 8;
         }
 
         found_struct = search_global_symbol_table(variable_or_procedure_or_struct, STRUCT);
@@ -4939,6 +4960,13 @@ void compile_assignment(char* variable) {
   uint64_t offset;
   uint64_t ltype;
   uint64_t rtype;
+  char* ident;
+  uint64_t* field;
+  uint64_t is_struct;
+
+  is_struct = 0;
+  base = 0;
+  entry = (uint64_t*)0;
 
   // assert: identifier has already been parsed if variable != (char*) 0
 
@@ -4999,6 +5027,29 @@ void compile_assignment(char* variable) {
     offset = 0;
   }
 
+  while (symbol == SYM_DEREF) {
+    get_symbol();
+    ident = identifier;
+    get_expected_symbol(SYM_IDENTIFIER);
+
+    if (is_struct_type(ltype) == 0) {
+      printf("not a struct\n");
+      exit(55);
+    }
+
+    field = get_struct_field((uint64_t*)get_value((uint64_t*)ltype), ident);
+
+    if (is_struct != 1) talloc();
+
+    emit_load(current_temporary(), base, offset);
+    base = current_temporary();
+    offset = get_field_offset(field);
+
+    ltype = get_field_type(field);
+
+    is_struct = 1;
+  }
+
   // assert: base + offset is address where to store
 
   if (symbol == SYM_ASSIGN) {
@@ -5013,8 +5064,11 @@ void compile_assignment(char* variable) {
 
     rtype = compile_expression();
 
-    if (ltype != rtype)
-      type_warning(ltype, rtype);
+    if (ltype != rtype) {
+      if (is_struct_type(ltype) == 0) {
+        type_warning(ltype, rtype);
+      }
+    }
 
     // assign value of RHS in current temporary to LHS at base + offset
     emit_store(base, offset, current_temporary());
@@ -5028,7 +5082,9 @@ void compile_assignment(char* variable) {
   if (dereference)
     // assert: allocated_temporaries == 1
     tfree(1);
-  else if (offset != get_address(entry))
+  else if (is_struct) {
+    tfree(1);
+  } else if (offset != get_address(entry))
     // assert: allocated_temporaries == 1
     tfree(1);
 
@@ -5231,6 +5287,8 @@ uint64_t compile_factor() {
   uint64_t negative;
   uint64_t dereference;
   char* variable_or_procedure;
+  char* ident;
+  uint64_t* field;
 
   // assert: n = allocated_temporaries
 
@@ -5340,6 +5398,23 @@ uint64_t compile_factor() {
     load_integer(0);
 
     type = UINT64_T;
+  }
+
+  while (symbol == SYM_DEREF) {
+    get_symbol();
+    ident = identifier;
+    get_expected_symbol(SYM_IDENTIFIER);
+
+    if (is_struct_type(type) == 0) {
+      printf("not struct\n");
+      exit(55);
+    }
+
+    field = get_struct_field((uint64_t*)get_value((uint64_t*)type), ident);
+
+    emit_load(current_temporary(), current_temporary(), get_field_offset(field));
+
+    type = get_field_type(field);
   }
 
   if (dereference) {
